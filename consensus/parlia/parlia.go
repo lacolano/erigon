@@ -1068,9 +1068,9 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.IntraBlockS
 		return txs, systemTxs, receipts, nil
 	}
 	// reward validator 12.5%
-	valRewards := new(uint256.Int)
-	valRewards = valRewards.Rsh(rewards, systemRewardPercent)
-	rewards = rewards.Sub(rewards, valRewards)
+	// valRewards := new(uint256.Int)
+	// valRewards = valRewards.Rsh(rewards, systemRewardPercent)
+	// rewards = rewards.Sub(rewards, valRewards)
 
 	//log.Debug("[parlia] distribute to validator contract", "block hash", header.Hash(), "amount", balance)
 	var err error

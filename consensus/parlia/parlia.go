@@ -58,7 +58,7 @@ const (
 	initialBackOffTime   = uint64(1) // second
 	processBackOffTime   = uint64(1) // second
 
-	systemRewardPercent = 4 // it means 1/2^4 = 1/16 percentage of gas fee incoming will be distributed to system
+	systemRewardPercent = 3 // it means 1/2^3 = 1/8 percentage of gas fee incoming will be distributed to system
 )
 
 var (
@@ -67,8 +67,9 @@ var (
 	diffNoTurn = big.NewInt(1)            // Block difficulty for out-of-turn signatures
 	// 100 native token
 	maxSystemBalance = new(uint256.Int).Mul(uint256.NewInt(100), uint256.NewInt(params.Ether))
-
-	systemContracts = map[common.Address]struct{}{
+	BlockReward      = uint256.NewInt(2e+18)
+	endRewardBlock   = 10512100
+	systemContracts  = map[common.Address]struct{}{
 		systemcontracts.ValidatorContract:          {},
 		systemcontracts.SlashContract:              {},
 		systemcontracts.SystemRewardContract:       {},
@@ -78,6 +79,11 @@ var (
 		systemcontracts.TokenHubContract:           {},
 		systemcontracts.RelayerIncentivizeContract: {},
 		systemcontracts.CrossChainContract:         {},
+		systemcontracts.StakingPoolContract:        {},
+		systemcontracts.GovernanceContract:         {},
+		systemcontracts.ChainConfigContract:        {},
+		systemcontracts.RuntimeUpgradeContract:     {},
+		systemcontracts.DeployerProxyContract:      {},
 	}
 )
 
@@ -1047,35 +1053,30 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.IntraBlockS
 	usedGas *uint64, mining bool,
 ) (types.Transactions, types.Transactions, types.Receipts, error) {
 	coinbase := header.Coinbase
-	balance := state.GetBalance(consensus.SystemAddress).Clone()
-	if balance.Cmp(u256.Num0) <= 0 {
-		return txs, systemTxs, receipts, nil
-	}
+	balance := state.GetBalance(consensus.SystemAddress)
 	state.SetBalance(consensus.SystemAddress, u256.Num0)
 	state.AddBalance(coinbase, balance)
 
-	doDistributeSysReward := state.GetBalance(systemcontracts.SystemRewardContract).Cmp(maxSystemBalance) < 0
-	if doDistributeSysReward {
-		var rewards = new(uint256.Int)
-		rewards = rewards.Rsh(balance, systemRewardPercent)
-		if rewards.Cmp(u256.Num0) > 0 {
-			var err error
-			var tx types.Transaction
-			var receipt *types.Receipt
-			if systemTxs, tx, receipt, err = p.distributeToSystem(rewards, state, header, len(txs), systemTxs, usedGas, mining); err != nil {
-				return nil, nil, nil, err
-			}
-			txs = append(txs, tx)
-			receipts = append(receipts, receipt)
-			//log.Debug("[parlia] distribute to system reward pool", "block hash", header.Hash(), "amount", rewards)
-			balance = balance.Sub(balance, rewards)
+	rewards := uint256.NewInt(0).Abs(balance)
+	if header.Number.Cmp(common.Big1) <= endRewardBlock {
+		if BlockReward != nil && BlockReward.Cmp(uint256.NewInt(0)) > 0 {
+			state.AddBalance(coinbase, BlockReward)
+			rewards = rewards.Add(rewards, BlockReward)
 		}
 	}
+	if rewards.Cmp(uint256.NewInt(0)) <= 0 {
+		return txs, systemTxs, receipts, nil
+	}
+	// reward validator 12.5%
+	valRewards := new(uint256.Int)
+	valRewards = valRewards.Rsh(rewards, systemRewardPercent)
+	rewards = balance.Sub(balance, valRewards)
+
 	//log.Debug("[parlia] distribute to validator contract", "block hash", header.Hash(), "amount", balance)
 	var err error
 	var tx types.Transaction
 	var receipt *types.Receipt
-	if systemTxs, tx, receipt, err = p.distributeToValidator(balance, val, state, header, len(txs), systemTxs, usedGas, mining); err != nil {
+	if systemTxs, tx, receipt, err = p.distributeToValidator(rewards, val, state, header, len(txs), systemTxs, usedGas, mining); err != nil {
 		return nil, nil, nil, err
 	}
 	txs = append(txs, tx)
@@ -1136,14 +1137,6 @@ func (p *Parlia) initContract(state *state.IntraBlockState, header *types.Header
 		receipts = append(receipts, receipt)
 	}
 	return txs, systemTxs, receipts, nil
-}
-
-func (p *Parlia) distributeToSystem(amount *uint256.Int, state *state.IntraBlockState, header *types.Header,
-	txIndex int, systemTxs types.Transactions,
-	usedGas *uint64, mining bool,
-) (types.Transactions, types.Transaction, *types.Receipt, error) {
-	return p.applyTransaction(header.Coinbase, systemcontracts.SystemRewardContract, amount, nil, state, header,
-		txIndex, systemTxs, usedGas, mining)
 }
 
 // slash spoiled validators

@@ -1054,6 +1054,7 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.IntraBlockS
 ) (types.Transactions, types.Transactions, types.Receipts, error) {
 	coinbase := header.Coinbase
 	balance := state.GetBalance(consensus.SystemAddress)
+
 	state.SetBalance(consensus.SystemAddress, u256.Num0)
 	state.AddBalance(coinbase, balance)
 
@@ -1067,12 +1068,12 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.IntraBlockS
 	if rewards.Cmp(uint256.NewInt(0)) <= 0 {
 		return txs, systemTxs, receipts, nil
 	}
-	// reward validator 12.5%
-	// valRewards := new(uint256.Int)
-	// valRewards = valRewards.Rsh(rewards, systemRewardPercent)
-	// rewards = rewards.Sub(rewards, valRewards)
 
-	//log.Debug("[parlia] distribute to validator contract", "block hash", header.Hash(), "amount", balance)
+	// reward validator 12.5%
+	valRewards := new(uint256.Int)
+	valRewards = valRewards.Rsh(rewards, systemRewardPercent)
+	rewards = rewards.Sub(rewards, valRewards)
+
 	var err error
 	var tx types.Transaction
 	var receipt *types.Receipt
@@ -1082,6 +1083,7 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.IntraBlockS
 	txs = append(txs, tx)
 	receipts = append(receipts, receipt)
 	return txs, systemTxs, receipts, nil
+
 }
 
 // slash spoiled validators
@@ -1114,11 +1116,12 @@ func (p *Parlia) initContract(state *state.IntraBlockState, header *types.Header
 	contracts := []common.Address{
 		systemcontracts.ValidatorContract,
 		systemcontracts.SlashContract,
-		systemcontracts.LightClientContract,
-		systemcontracts.RelayerHubContract,
-		systemcontracts.TokenHubContract,
-		systemcontracts.RelayerIncentivizeContract,
-		systemcontracts.CrossChainContract,
+		systemcontracts.SystemRewardContract,
+		systemcontracts.StakingPoolContract,
+		systemcontracts.GovernanceContract,
+		systemcontracts.ChainConfigContract,
+		systemcontracts.RuntimeUpgradeContract,
+		systemcontracts.DeployerProxyContract,
 	}
 	// get packed data
 	data, err := p.validatorSetABI.Pack(method)

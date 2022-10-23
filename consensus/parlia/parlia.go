@@ -66,10 +66,10 @@ var (
 	diffInTurn = big.NewInt(2)            // Block difficulty for in-turn signatures
 	diffNoTurn = big.NewInt(1)            // Block difficulty for out-of-turn signatures
 	// 100 native token
-	maxSystemBalance = new(uint256.Int).Mul(uint256.NewInt(100), uint256.NewInt(params.Ether))
-	BlockReward      = uint256.NewInt(2e+18)
-	endRewardBlock   = 10512100
-	systemContracts  = map[common.Address]struct{}{
+	// maxSystemBalance = new(uint256.Int).Mul(uint256.NewInt(100), uint256.NewInt(params.Ether))
+	BlockReward     = uint256.NewInt(2e+18)
+	endRewardBlock  = 10512100
+	systemContracts = map[common.Address]struct{}{
 		systemcontracts.ValidatorContract:          {},
 		systemcontracts.SlashContract:              {},
 		systemcontracts.SystemRewardContract:       {},
